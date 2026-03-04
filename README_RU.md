@@ -45,7 +45,7 @@ python main.py
 from schedule_processor import ScheduleProcessor
 
 # Создание процессора
-processor = ScheduleProcessor('22ITsTiM_Raspisanie_2_polugodie_25-26_mag__pechat2.xlsx')
+processor = ScheduleProcessor('ITsTiM_Raspisanie_2_polugodie_25-26_bak__pechat.xlsx')
 
 # Загрузка и парсинг данных
 processor.load_data()
@@ -67,7 +67,7 @@ processor.export_to_pdf(teacher_name, "output.pdf")
 - `schedule_processor.py` - Основной класс обработки, содержащий функции загрузки данных, парсинга и генерации PDF
 - `main.py` - Интерактивная основная программа
 - `requirements.txt` - Список зависимостей Python
-- `22ITsTiM_Raspisanie_2_polugodie_25-26_mag__pechat2.xlsx` - Исходный файл расписания
+- `ITsTiM_Raspisanie_2_polugodie_25-26_bak__pechat.xlsx` - Исходный файл расписания
 
 ## Формат вывода
 

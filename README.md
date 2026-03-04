@@ -45,7 +45,7 @@ python main.py
 from schedule_processor import ScheduleProcessor
 
 # 创建处理器
-processor = ScheduleProcessor('22ITsTiM_Raspisanie_2_polugodie_25-26_mag__pechat2.xlsx')
+processor = ScheduleProcessor('ITsTiM_Raspisanie_2_polugodie_25-26_bak__pechat.xlsx')
 
 # 加载和解析数据
 processor.load_data()
@@ -67,7 +67,7 @@ processor.export_to_pdf(teacher_name, "output.pdf")
 - `schedule_processor.py` - 核心处理类，包含数据加载、解析和PDF生成功能
 - `main.py` - 交互式主程序
 - `requirements.txt` - Python依赖包列表
-- `22ITsTiM_Raspisanie_2_polugodie_25-26_mag__pechat2.xlsx` - 原始课程表文件
+- `ITsTiM_Raspisanie_2_polugodie_25-26_bak__pechat.xlsx` - 原始课程表文件
 
 ## 输出格式
 

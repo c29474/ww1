@@ -31,8 +31,19 @@ class ScheduleProcessor:
             print(f"字体注册警告: {e}")
         
     def load_data(self):
-        self.df = pd.read_excel(self.excel_file, sheet_name='表6', header=None)
-        print(f"成功加载课程表，共 {len(self.df)} 行数据")
+        xl = pd.ExcelFile(self.excel_file)
+        sheet_names = xl.sheet_names
+        
+        if 'Бак_2024-2025' in sheet_names:
+            sheet_name = 'Бак_2024-2025'
+        elif '表6' in sheet_names:
+            sheet_name = '表6'
+        else:
+            sheet_name = sheet_names[0]
+            print(f"Предупреждение: используется лист {sheet_name}")
+        
+        self.df = pd.read_excel(self.excel_file, sheet_name=sheet_name, header=None)
+        print(f"Успешно загружено расписание, {len(self.df)} строк")
         
     def parse_schedule(self):
         self.schedule_data = []
@@ -65,8 +76,8 @@ class ScheduleProcessor:
                     if pd.notna(cell_value) and isinstance(cell_value, str) and len(cell_value.strip()) > 5:
                         self._parse_cell(cell_value, current_day, current_time, col_idx)
         
-        print(f"解析完成，共找到 {len(self.schedule_data)} 条课程记录")
-        print(f"共有 {len(self.teachers)} 位教师")
+        print(f"Парсинг завершен, найдено {len(self.schedule_data)} записей")
+        print(f"Всего {len(self.teachers)} преподавателей")
         
     def _parse_cell(self, cell_value, day, time, col_idx):
         cell_value = str(cell_value).strip()
@@ -107,7 +118,7 @@ class ScheduleProcessor:
         schedule = self.get_teacher_schedule(teacher_name)
         
         if not schedule:
-            print(f"未找到教师 {teacher_name} 的课程")
+            print(f"Преподаватель {teacher_name} не найден")
             return False
         
         doc = SimpleDocTemplate(output_file, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, 
@@ -168,7 +179,7 @@ class ScheduleProcessor:
                 story.append(Spacer(1, 0.5*cm))
         
         doc.build(story)
-        print(f"PDF文件已生成: {output_file}")
+        print(f"PDF-файл создан: {output_file}")
         return True
 
 def main():

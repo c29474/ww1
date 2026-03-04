@@ -20,7 +20,7 @@ def print_teachers(teachers, page=1, per_page=10):
 def main():
     print_header()
     
-    excel_file = '22ITsTiM_Raspisanie_2_polugodie_25-26_mag__pechat2.xlsx'
+    excel_file = 'ITsTiM_Raspisanie_2_polugodie_25-26_bak__pechat.xlsx'
     
     if not os.path.exists(excel_file):
         print(f"\nОшибка: файл не найден {excel_file}")
