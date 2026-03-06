@@ -15,6 +15,7 @@ class ScheduleProcessor:
         self.df = None
         self.teachers = set()
         self.schedule_data = []
+        self.group_grade_map = {}
         self._register_fonts()
         
     def _register_fonts(self):
@@ -44,6 +45,27 @@ class ScheduleProcessor:
         
         self.df = pd.read_excel(self.excel_file, sheet_name=sheet_name, header=None)
         print(f"Успешно загружено расписание, {len(self.df)} строк")
+        
+        self._extract_grade_info()
+    
+    def _extract_grade_info(self):
+        self.group_grade_map = {}
+        if len(self.df) > 2:
+            for col_idx in range(2, len(self.df.columns)):
+                group_name = self.df.iloc[2, col_idx]
+                if pd.notna(group_name) and isinstance(group_name, str):
+                    grade = self._extract_grade_from_group(group_name)
+                    self.group_grade_map[col_idx] = {
+                        'group': group_name,
+                        'grade': grade
+                    }
+        print(f"Извлечена информация о {len(self.group_grade_map)} группах")
+    
+    def _extract_grade_from_group(self, group_name):
+        match = re.search(r'(\d+)', group_name)
+        if match:
+            return int(match.group(1))
+        return ''
         
     def parse_schedule(self):
         self.schedule_data = []
@@ -98,6 +120,13 @@ class ScheduleProcessor:
             lesson_name = re.sub(r'\s*\d+-\d+[а-я]?\s*', ' ', lesson_name)
             lesson_name = ' '.join(lesson_name.split())
             
+            grade_info = self.group_grade_map.get(col_idx, {})
+            grade = grade_info.get('grade', '')
+            group_name = grade_info.get('group', '')
+            
+            if not grade:
+                grade = ''
+            
             self.schedule_data.append({
                 'day': day,
                 'time': time,
@@ -105,7 +134,9 @@ class ScheduleProcessor:
                 'type': lesson_type,
                 'teacher': teacher,
                 'room': room,
-                'group_col': col_idx
+                'group_col': col_idx,
+                'grade': str(grade) if grade else '',
+                'group': group_name
             })
     
     def get_teachers(self):
@@ -113,6 +144,15 @@ class ScheduleProcessor:
     
     def get_teacher_schedule(self, teacher_name):
         return [item for item in self.schedule_data if teacher_name in item['teacher']]
+    
+    def get_teacher_grades(self, teacher_name):
+        schedule = self.get_teacher_schedule(teacher_name)
+        grades = {}
+        for item in schedule:
+            grade = item['grade']
+            if grade:
+                grades[grade] = grades.get(grade, 0) + 1
+        return grades
     
     def export_to_pdf(self, teacher_name, output_file):
         schedule = self.get_teacher_schedule(teacher_name)
@@ -155,28 +195,61 @@ class ScheduleProcessor:
                 story.append(day_title)
                 story.append(Spacer(1, 0.2*cm))
                 
-                table_data = [['Время', 'Предмет', 'Тип', 'Аудитория']]
+                table_data = [['Время', 'Предмет', 'Тип', 'Курс', 'Аудитория']]
                 for item in sorted(day_schedule, key=lambda x: x['time']):
                     table_data.append([
                         item['time'],
                         item['lesson'],
                         item['type'],
+                        str(item['grade']) if item['grade'] else '',
                         item['room']
                     ])
                 
-                table = Table(table_data, colWidths=[2.5*cm, 10*cm, 2*cm, 2.5*cm])
+                table = Table(table_data, colWidths=[2.5*cm, 9*cm, 2*cm, 1.5*cm, 2.5*cm], repeatRows=1)
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
                     ('FONTSIZE', (0, 0), (-1, -1), 9),
-                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ]))
                 story.append(table)
                 story.append(Spacer(1, 0.5*cm))
+        
+        grades = self.get_teacher_grades(teacher_name)
+        if grades:
+            story.append(Spacer(1, 0.3*cm))
+            grades_title = Paragraph("<b>Распределение по курсам:</b>", heading_style)
+            story.append(grades_title)
+            
+            grades_table_data = [['Курс', 'Количество занятий']]
+            for grade in sorted(grades.keys(), key=int):
+                grades_table_data.append([grade, str(grades[grade])])
+            
+            grades_table = Table(grades_table_data, colWidths=[3*cm, 4*cm])
+            grades_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ]))
+            story.append(grades_table)
+            story.append(Spacer(1, 0.5*cm))
         
         doc.build(story)
         print(f"PDF-файл создан: {output_file}")
