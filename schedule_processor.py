@@ -195,17 +195,17 @@ class ScheduleProcessor:
                 story.append(day_title)
                 story.append(Spacer(1, 0.2*cm))
                 
-                table_data = [['Время', 'Предмет', 'Тип', 'Курс', 'Аудитория']]
+                table_data = [['Время', 'Предмет', 'Курс', 'Аудитория', 'Преподаватель']]
                 for item in sorted(day_schedule, key=lambda x: x['time']):
                     table_data.append([
                         item['time'],
                         item['lesson'],
-                        item['type'],
                         str(item['grade']) if item['grade'] else '',
-                        item['room']
+                        item['room'],
+                        teacher_name
                     ])
                 
-                table = Table(table_data, colWidths=[2.5*cm, 9*cm, 2*cm, 1.5*cm, 2.5*cm], repeatRows=1)
+                table = Table(table_data, colWidths=[2.5*cm, 10*cm, 1.5*cm, 2.5*cm, 3*cm])
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -213,43 +213,15 @@ class ScheduleProcessor:
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
                     ('FONTSIZE', (0, 0), (-1, -1), 9),
-                    ('TOPPADDING', (0, 0), (-1, -1), 8),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 5),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                 ]))
                 story.append(table)
                 story.append(Spacer(1, 0.5*cm))
-        
-        grades = self.get_teacher_grades(teacher_name)
-        if grades:
-            story.append(Spacer(1, 0.3*cm))
-            grades_title = Paragraph("<b>Распределение по курсам:</b>", heading_style)
-            story.append(grades_title)
-            
-            grades_table_data = [['Курс', 'Количество занятий']]
-            for grade in sorted(grades.keys(), key=int):
-                grades_table_data.append([grade, str(grades[grade])])
-            
-            grades_table = Table(grades_table_data, colWidths=[3*cm, 4*cm])
-            grades_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('FONTNAME', (0, 0), (-1, -1), 'Arial'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ]))
-            story.append(grades_table)
-            story.append(Spacer(1, 0.5*cm))
         
         doc.build(story)
         print(f"PDF-файл создан: {output_file}")
