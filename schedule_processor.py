@@ -202,11 +202,14 @@ class ScheduleProcessor:
         解析课程安排
         
         遍历Excel数据，识别星期和时间，解析每个课程单元格。
+        只提取星期一（Понедельник）到星期五（Пятница）的课程数据。
+        在星期五的最后一个时间段（11-12 с 17.45）之后停止提取。
         
         解析流程：
         1. 识别星期行（如 "П О Н Е Д Е Л Ь Н И К"）
         2. 识别时间列（如 "1-2 с 8.30"）
         3. 解析课程单元格内容
+        4. 在星期五的 11-12 с 17.45 时间段之后停止
         
         课程数据存储在 schedule_data 列表中，每条记录包含：
         - day: 星期
@@ -222,10 +225,20 @@ class ScheduleProcessor:
         current_day = None   # 当前星期
         current_time = None  # 当前时间段
         
+        # 有效星期列表（只提取星期一到星期五）
+        valid_days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
+        
+        # 标记是否已处理完星期五的最后一个时间段
+        friday_last_slot_done = False
+        
         # 遍历每一行
         for idx, row in self.df.iterrows():
             day = row[0]   # 第1列：星期
             time = row[1]  # 第2列：时间
+            
+            # 如果已经处理完星期五的最后一个时间段，停止提取
+            if friday_last_slot_done:
+                break
             
             # 识别星期（俄语星期名，字母间有空格）
             if pd.notna(day) and 'П О Н Е Д Е Л Ь Н И К' in str(day):
@@ -239,14 +252,20 @@ class ScheduleProcessor:
             elif pd.notna(day) and 'П Я Т Н И Ц А' in str(day):
                 current_day = 'Пятница'       # 星期五
             elif pd.notna(day) and 'С У Б Б О Т А' in str(day):
-                current_day = 'Суббота'       # 星期六
+                # 遇到星期六，停止提取
+                break
                 
             # 更新当前时间
             if pd.notna(time):
                 current_time = str(time).replace('\n', ' ')
+                
+                # 检查是否是星期五的最后一个时间段（11-12 с 17.45）
+                if current_day == 'Пятница' and '11-12' in current_time and '17.45' in current_time:
+                    # 标记需要处理完这一行后停止
+                    friday_last_slot_done = True
             
-            # 如果已识别星期和时间，开始解析课程单元格
-            if current_day and current_time and idx > 0:
+            # 如果已识别星期和时间，且星期在有效范围内，开始解析课程单元格
+            if current_day and current_time and current_day in valid_days and idx > 0:
                 # 遍历第3列起的各组课程
                 for col_idx in range(2, len(row)):
                     cell_value = row[col_idx]
@@ -271,6 +290,12 @@ class ScheduleProcessor:
             Алгебра и геометрия (лк)
             Игонина Е.В. 4-15
         
+        完整性要求：
+            只有同时包含以下三项信息时才提取：
+            1. 课程内容（lesson_name）
+            2. 教室编号（room）
+            3. 班级信息（grade/group）
+        
         参数:
             cell_value: 单元格内容
             day: 星期
@@ -278,6 +303,22 @@ class ScheduleProcessor:
             col_idx: 列索引（用于获取组信息）
         """
         cell_value = str(cell_value).strip()
+        
+        # 过滤非课程信息（签名、备注等）
+        # 排除包含以下关键字的行
+        exclude_keywords = [
+            'Расписание составил',   # 课程表编制者
+            'Директор института',    # 学院院长
+            'И.о. директора',        # 代理院长
+            'СОГЛАСОВАНО',           # 已同意
+            'Председатель',          # 主席
+            'декана',                # 系主任
+            'Зав. кафедрой',         # 教研室主任
+        ]
+        
+        for keyword in exclude_keywords:
+            if keyword in cell_value:
+                return  # 跳过非课程信息
         
         # 提取教师姓名
         # 正则模式：俄语大写字母开头+小写字母+空格+大写字母缩写（1-2个）
@@ -315,21 +356,34 @@ class ScheduleProcessor:
             grade = grade_info.get('grade', '')
             group_name = grade_info.get('group', '')
             
-            if not grade:
-                grade = ''
+            # ========== 完整性验证 ==========
+            # 必须同时满足以下三项条件才提取：
+            # 1. 课程名称有效（非空且长度足够）
+            # 2. 教室编号有效（非空）
+            # 3. 班级信息有效（非空）
             
-            # 添加到课程数据列表
-            self.schedule_data.append({
-                'day': day,           # 星期
-                'time': time,         # 时间
-                'lesson': lesson_name,  # 课程名称
-                'type': lesson_type,    # 课程类型
-                'teacher': teacher,     # 教师姓名
-                'room': room,           # 教室
-                'group_col': col_idx,   # 列索引
-                'grade': str(grade) if grade else '',  # 年级/组标识
-                'group': group_name    # 完整组名
-            })
+            # 验证课程名称
+            lesson_valid = bool(lesson_name and len(lesson_name) >= 3)
+            
+            # 验证教室编号
+            room_valid = bool(room)
+            
+            # 验证班级信息（grade 或 group_name 至少有一个）
+            class_valid = bool(grade or group_name)
+            
+            # 只有三项信息都完整时才添加记录
+            if lesson_valid and room_valid and class_valid:
+                self.schedule_data.append({
+                    'day': day,           # 星期
+                    'time': time,         # 时间
+                    'lesson': lesson_name,  # 课程名称
+                    'type': lesson_type,    # 课程类型
+                    'teacher': teacher,     # 教师姓名
+                    'room': room,           # 教室
+                    'group_col': col_idx,   # 列索引
+                    'grade': str(grade) if grade else '',  # 年级/组标识
+                    'group': group_name    # 完整组名
+                })
     
     def get_teachers(self):
         """
@@ -513,6 +567,154 @@ class ScheduleProcessor:
         # 生成PDF文件
         doc.build(story)
         print(f"PDF-файл создан: {output_file}")  # PDF文件已创建
+        return True
+
+    def export_all_teachers_to_pdf(self, teachers, output_file):
+        """
+        导出所有教师的课程表到一个PDF文件
+        
+        生成一个包含所有教师课程表的PDF文档，每位教师单独一页。
+        
+        参数:
+            teachers (list): 教师姓名列表
+            output_file (str): 输出PDF文件路径
+            
+        返回:
+            bool: 成功返回True，失败返回False
+        """
+        # 创建PDF文档
+        doc = SimpleDocTemplate(
+            output_file, 
+            pagesize=A4, 
+            rightMargin=1.5*cm, 
+            leftMargin=1.5*cm, 
+            topMargin=2*cm, 
+            bottomMargin=2*cm
+        )
+        
+        # 文档内容列表
+        story = []
+        # 获取示例样式
+        styles = getSampleStyleSheet()
+        
+        # 定义标题样式
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Title'],
+            fontName='Arial-Bold',
+            fontSize=18,
+            spaceAfter=20
+        )
+        
+        # 定义星期标题样式
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontName='Arial-Bold',
+            fontSize=14,
+            spaceAfter=10
+        )
+        
+        # 定义单元格内容样式
+        cell_style = ParagraphStyle(
+            'CellStyle',
+            fontName='Arial',
+            fontSize=8,
+            leading=10,
+            wordWrap='CJK'
+        )
+        
+        # 定义表头样式
+        header_style = ParagraphStyle(
+            'HeaderStyle',
+            fontName='Arial-Bold',
+            fontSize=9,
+            leading=11,
+            textColor=colors.whitesmoke
+        )
+        
+        # 添加文档总标题
+        main_title = Paragraph("Полное расписание всех преподавателей", title_style)
+        story.append(main_title)
+        story.append(Spacer(1, 0.5*cm))
+        
+        # 统计信息
+        total_teachers = len(teachers)
+        total_classes = 0
+        
+        # 星期顺序
+        days_order = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
+        
+        # 遍历每位教师
+        for idx, teacher_name in enumerate(teachers, 1):
+            # 获取该教师的课程安排
+            schedule = self.get_teacher_schedule(teacher_name)
+            
+            if not schedule:
+                continue  # 跳过没有课程的教师
+            
+            total_classes += len(schedule)
+            
+            # 添加教师标题
+            teacher_title = Paragraph(f"{idx}. {teacher_name} ({len(schedule)} занятий)", title_style)
+            story.append(teacher_title)
+            story.append(Spacer(1, 0.3*cm))
+            
+            # 按星期生成课程表
+            for day in days_order:
+                day_schedule = [item for item in schedule if item['day'] == day]
+                
+                if day_schedule:
+                    # 添加星期标题
+                    day_title = Paragraph(f"<b>{day}</b>", heading_style)
+                    story.append(day_title)
+                    story.append(Spacer(1, 0.2*cm))
+                    
+                    # 构建表格数据
+                    table_data = [[
+                        Paragraph('<b>Время</b>', header_style),
+                        Paragraph('<b>Предмет</b>', header_style),
+                        Paragraph('<b>Курс</b>', header_style),
+                        Paragraph('<b>Аудитория</b>', header_style)
+                    ]]
+                    
+                    # 数据行（按时间排序）
+                    for item in sorted(day_schedule, key=lambda x: x['time']):
+                        table_data.append([
+                            Paragraph(item['time'], cell_style),
+                            Paragraph(item['lesson'], cell_style),
+                            Paragraph(str(item['grade']) if item['grade'] else '', cell_style),
+                            Paragraph(item['room'], cell_style)
+                        ])
+                    
+                    # 创建表格
+                    table = Table(table_data, colWidths=[2.5*cm, 10*cm, 2.5*cm, 2.5*cm])
+                    
+                    # 设置表格样式
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                    ]))
+                    
+                    story.append(table)
+                    story.append(Spacer(1, 0.3*cm))
+            
+            # 教师之间添加分页（除了最后一个）
+            if idx < total_teachers:
+                from reportlab.platypus import PageBreak
+                story.append(PageBreak())
+        
+        # 生成PDF文件
+        doc.build(story)
+        print(f"PDF-файл создан: {output_file}")  # PDF文件已创建
+        print(f"Всего преподавателей: {total_teachers}, всего занятий: {total_classes}")  # 统计信息
         return True
 
 

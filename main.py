@@ -1,4 +1,20 @@
 """
+Генератор расписания занятий - Основной файл программы
+
+=========================== Эта программа извлекает информацию о занятиях из файла Excel и генерирует PDF-файл, содержащий индивидуальное расписание занятий каждого преподавателя.
+
+Особенности:
+
+1. Интерактивный интерфейс командной строки с постраничным просмотром списка преподавателей
+
+2. Поддержка поиска преподавателей по имени
+
+3. Автоматическая генерация отформатированных PDF-файлов с расписанием занятий
+
+Использование:
+
+python main.py
+
 课程表生成器 - 主程序入口
 ==========================
 本程序用于从Excel文件中提取课程信息，并生成教师个人课程表的PDF文件。
@@ -99,6 +115,7 @@ def main():
         print("  n/N     - следующая страница")           # 下一页
         print("  p/P     - предыдущая страница")          # 上一页
         print("  s/S     - поиск преподавателя")          # 搜索教师
+        print("  a/A     - экспорт всех расписаний в PDF") # 导出所有课程表到PDF
         print("  q/Q     - выход")                        # 退出
         
         # 获取用户输入
@@ -108,6 +125,10 @@ def main():
         if choice.lower() == 'q':
             print("\nСпасибо за использование!")  # 感谢使用！
             break
+        
+        # 处理导出所有教师课程表命令
+        elif choice.lower() == 'a':
+            export_all_schedules(processor, teachers)
         
         # 处理下一页命令
         elif choice.lower() == 'n':
@@ -186,6 +207,36 @@ def generate_schedule(processor, teacher_name):
             print("\n✗ Ошибка генерации PDF")  # PDF生成错误
     else:
         print("\nОтменено")  # 已取消
+
+
+def export_all_schedules(processor, teachers):
+    """
+    导出所有教师的课程表到一个PDF文件
+    
+    参数:
+        processor (ScheduleProcessor): 课程表处理器实例
+        teachers (list): 教师姓名列表
+    """
+    print(f"\n准备导出所有教师的课程表...")
+    print(f"共 {len(teachers)} 位教师")
+    
+    # 确认导出
+    confirm = input("\nПодтвердить экспорт всех расписаний в один PDF? (y/n) > ").strip().lower()
+    if confirm != 'y':
+        print("\nОтменено")  # 已取消
+        return
+    
+    # 生成输出文件名
+    output_file = "all_teachers_schedule.pdf"
+    
+    # 调用处理器导出所有课程表
+    success = processor.export_all_teachers_to_pdf(teachers, output_file)
+    
+    if success:
+        print(f"\n✓ PDF-файл успешно создан: {output_file}")  # PDF文件创建成功
+        print(f"  Расположение: {os.path.abspath(output_file)}")  # 文件位置
+    else:
+        print("\n✗ Ошибка генерации PDF")  # PDF生成错误
 
 
 # 程序入口点
