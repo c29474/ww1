@@ -62,10 +62,10 @@ class ScheduleProcessor:
         print(f"Извлечена информация о {len(self.group_grade_map)} группах")
     
     def _extract_grade_from_group(self, group_name):
-        match = re.search(r'(\d+)', group_name)
+        match = re.search(r'([А-ЯЁа-яё]+[-\s]*\d+)', group_name)
         if match:
-            return int(match.group(1))
-        return ''
+            return match.group(1).replace(' ', '')
+        return group_name.strip()
         
     def parse_schedule(self):
         self.schedule_data = []
@@ -104,21 +104,21 @@ class ScheduleProcessor:
     def _parse_cell(self, cell_value, day, time, col_idx):
         cell_value = str(cell_value).strip()
         
-        teacher_match = re.search(r'([А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ]\.){1,2})', cell_value)
+        teacher_match = re.search(r'([А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s*[А-ЯЁ]?\.?)', cell_value)
         if teacher_match:
-            teacher = teacher_match.group(1)
+            teacher = ' '.join(teacher_match.group(1).split())
             self.teachers.add(teacher)
             
-            room_match = re.search(r'(\d+-\d+[а-я]?)|(\d+-\d+)', cell_value)
-            room = room_match.group(0) if room_match else ''
+            room_match = re.search(r'(\d+-\d+[а-я]?)', cell_value)
+            room = room_match.group(1) if room_match else ''
             
             lesson_type_match = re.search(r'\((лк|пз|лб)\)', cell_value)
             lesson_type = lesson_type_match.group(1) if lesson_type_match else ''
             
-            lesson_name = re.sub(r'\s*\([^)]*\)\s*', ' ', cell_value)
-            lesson_name = re.sub(r'\s*[А-ЯЁ][а-яё]+(?:\s+[А-ЯЁ]\.){1,2}\s*', ' ', lesson_name)
-            lesson_name = re.sub(r'\s*\d+-\d+[а-я]?\s*', ' ', lesson_name)
-            lesson_name = ' '.join(lesson_name.split())
+            lesson_name = re.sub(r'\s*[А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s*[А-ЯЁ]?\.?\s*', '\n', cell_value)
+            lesson_name = lesson_name.split('\n')[0].strip()
+            lesson_name = re.sub(r'\s*\d+-\d+[а-я]?\s*$', '', lesson_name)
+            lesson_name = re.sub(r'\s+', ' ', lesson_name).strip()
             
             grade_info = self.group_grade_map.get(col_idx, {})
             grade = grade_info.get('grade', '')
